@@ -20,7 +20,7 @@ setup(
     ],
     keywords='woe credit scoring information-value visualization',
     description='Scripts for credit scoring analysis',
-    long_description=open(join(dirname(__file__), 'README.rst')).read(),
+    # long_description=open(join(dirname(__file__), 'README.rst')).read(),
     url='https://github.com/dshulchevskii/risksutils',
     author='Dmitry Shulchevskii',
     author_email='dshulchevskii@gmail.com',

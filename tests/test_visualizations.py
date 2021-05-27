@@ -3,7 +3,7 @@
 from io import StringIO
 import numpy as np
 import pandas as pd
-
+import unittest
 
 from risksutils.visualization import (
     woe_stab, woe_line, InteractiveIsotonic, distribution, isotonic, cross_tab
