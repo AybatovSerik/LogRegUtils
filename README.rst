@@ -13,9 +13,9 @@
 Установка
 ---------
 
-Для установки воспользуйтесь pip::
+Для установки воспользуйтесь командой::
 
-    pip install risksutils
+    python -m pip install risksutils git+https://github.com/AybatovSerik/LogRegUtils.git
 
 
 .. |TravisImage| image:: https://travis-ci.org/dshulchevskii/risksutils.svg?branch=master

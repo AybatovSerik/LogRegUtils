@@ -93,7 +93,7 @@ bokeh_opts = {  # pylint: disable=invalid-name
 
 
 @_set_options
-def woe_line(df, feature, target, num_buck=10):
+def woe_line(df, feature, target, num_buck=10, func=lambda x:x):
     """График зависимости WoE от признака
 
     **Аргументы**
@@ -106,11 +106,15 @@ def woe_line(df, feature, target, num_buck=10):
         название целевой переменной
     num_buck : int
         количество бакетов
+    func : func
+        некоторое преоброзование над признаком
 
     **Результат**
 
     scatter * errors * line : holoviews.Overlay
     """
+    df_copy = df.copy()
+    df_copy[feature] = df_copy[feature].apply(func)
     df_agg = _aggregate_data_for_woe_line(df, feature, target, num_buck)
 
     scatter = hv.Scatter(data=df_agg, kdims=[feature],
