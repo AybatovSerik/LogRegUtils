@@ -179,6 +179,53 @@ def woe_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
 
 
 @_set_options
+def tr_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
+    """График стабильности WoE признака по времени
+
+    **Аргументы**
+
+    df : pandas.DataFrame
+        таблица с данными
+
+    feature : str
+        название признака
+
+    target : str
+        название целевой переменной
+
+    date : str
+        название поля со временем
+
+    num_buck : int
+        количество бакетов
+
+    date_ferq : str
+        Тип агрегации времени (по умолчанию 'MS' - начало месяца)
+
+    **Результат**
+
+    curves * spreads : holoviews.Overlay
+    """
+
+    df_agg = _aggregate_data_for_tr_stab(df, feature, target, date,
+                                         num_buck, date_freq)
+
+    data = hv.Dataset(df_agg, kdims=['bucket', date],
+                      vdims=['target_rate', 'tr_b', 'tr_u'])
+    confident_intervals = (data.to.spread(kdims=[date],  # pylint: disable=no-member
+                                          vdims=['target_rate', 'tr_b', 'tr_u'],
+                                          group='Confident Intervals')
+                           .overlay('bucket'))
+    woe_curves = (data.to.curve(kdims=[date], vdims=['target_rate'],  # pylint: disable=no-member
+                                group='Weight of evidence')
+                  .overlay('bucket'))
+    diagram = hv.Overlay(items=[confident_intervals * woe_curves],
+                         group='Target Rate Stab',
+                         label=feature)
+    return diagram
+
+
+@_set_options
 def distribution(df, feature, date, num_buck=10, date_freq='MS'):
     """График изменения распределения признака по времени
 
@@ -261,6 +308,21 @@ def isotonic(df, predict, target, calibrations_data=None):
                           group='Isotonic', label=predict)
     return hv.Overlay(items=[curve, confident_intervals],
                       group='Isotonic', label=predict)
+
+
+@_set_options
+def target_rates(df, feature, target, num_buck):
+    df_copy = df.copy()
+    df_agg = _aggregate_data_for_target_rate(df_copy, feature, target, num_buck)
+    scatter = hv.Scatter(data=df_agg, kdims=[feature],
+                         vdims=['target_rate'], group='Weight of evidence')
+    errors = hv.ErrorBars(data=df_agg, kdims=[feature],
+                          vdims=['target_rate', 'tr_u', 'tr_b'],
+                          group='Confident Intervals')
+    diagram = hv.Overlay(items=[scatter, errors],
+                         group='Target Rate',
+                         label=feature)
+    return diagram
 
 
 def cross_tab(df, feature1, feature2, target,
@@ -369,6 +431,32 @@ def _aggregate_data_for_woe_line(df, feature, target, num_buck):
     return df_agg
 
 
+def _aggregate_data_for_target_rate(df, feature, target, num_buck):
+    df = df[[feature, target]].dropna()
+
+    df_agg = (
+        df.assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+                  obj_count=1)
+            .groupby('bucket', as_index=False)
+            .agg({target: 'sum', 'obj_count': 'sum', feature: 'mean'})
+            .dropna()
+            .rename(columns={target: 'target_count'})
+            .assign(obj_total=lambda x: x['obj_count'].sum(),
+                    target_total=lambda x: x['target_count'].sum())
+            .assign(obj_rate=lambda x: x['obj_count'] / x['obj_total'],
+                    target_rate=lambda x: x['target_count'] / x['obj_count'],
+                    target_rate_total=lambda x: x['target_total'] / x['obj_total'])
+            .assign(
+                    tr_lo=lambda x: _clopper_pearson(x['target_count'], x['obj_count'], 0.05)[0],
+                    tr_hi=lambda x: _clopper_pearson(x['target_count'], x['obj_count'], 0.05)[1])
+            .assign(tr_u=lambda x: x['tr_hi'] - x['target_rate'],
+                    tr_b=lambda x: x['target_rate'] - x['tr_lo'])
+            .loc[:, [feature, 'obj_count', 'target_rate', 'tr_u', 'tr_b']]
+    )
+
+    return df_agg
+
+
 def _aggregate_data_for_woe_stab(df, feature, target,
                                  date, num_buck, date_freq):
     return (
@@ -396,6 +484,34 @@ def _aggregate_data_for_woe_stab(df, feature, target,
                                          x['target_rate_total'])[1])
         .assign(woe_u=lambda x: x['woe_hi'] - x['woe'],
                 woe_b=lambda x: x['woe'] - x['woe_lo'])
+    )
+
+
+def _aggregate_data_for_tr_stab(df, feature, target,
+                                date, num_buck, date_freq):
+    return (
+        df.loc[lambda x: x[[date, target]].notnull().all(axis=1)]
+            .loc[:, [feature, target, date]]
+            .assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+                    obj_count=1)
+            .groupby(['bucket', pd.Grouper(key=date, freq=date_freq)])
+            .agg({target: 'sum', 'obj_count': 'sum'})
+            .reset_index()
+            .assign(
+            obj_total=lambda x: (
+                x.groupby(pd.Grouper(key=date, freq=date_freq))
+                ['obj_count'].transform('sum')),
+            target_total=lambda x: (
+                x.groupby(pd.Grouper(key=date, freq=date_freq))
+                [target].transform('sum')))
+            .assign(obj_rate=lambda x: x['obj_count'] / x['obj_total'],
+                    target_rate=lambda x: x[target] / x['obj_count'],
+                    target_rate_total=lambda x: x['target_total'] / x['obj_total'])
+            .assign(
+                    tr_lo=lambda x: _clopper_pearson(x[target], x['obj_count'], 0.05)[0],
+                    tr_hi=lambda x: _clopper_pearson(x[target], x['obj_count'], 0.05)[1])
+            .assign(tr_u=lambda x: x['tr_hi'] - x['target_rate'],
+                    tr_b=lambda x: x['target_rate'] - x['tr_lo'])
     )
 
 
