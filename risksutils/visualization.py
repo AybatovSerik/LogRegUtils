@@ -93,7 +93,7 @@ bokeh_opts = {  # pylint: disable=invalid-name
 
 
 @_set_options
-def woe_line(df, feature, target, num_buck=10, func=lambda x:x):
+def woe_line(df, feature, target, num_buck=10, func=lambda x: x, bucket_type="rank"):
     """График зависимости WoE от признака
 
     **Аргументы**
@@ -115,7 +115,7 @@ def woe_line(df, feature, target, num_buck=10, func=lambda x:x):
     """
     df_copy = df.copy()
     df_copy[feature] = df_copy[feature].apply(func)
-    df_agg = _aggregate_data_for_woe_line(df_copy, feature, target, num_buck)
+    df_agg = _aggregate_data_for_woe_line(df_copy, feature, target, num_buck, bucket_type=bucket_type)
 
     scatter = hv.Scatter(data=df_agg, kdims=[feature],
                          vdims=['woe'], group='Weight of evidence')
@@ -132,7 +132,7 @@ def woe_line(df, feature, target, num_buck=10, func=lambda x:x):
 
 
 @_set_options
-def woe_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
+def woe_stab(df, feature, target, date, num_buck=10, date_freq='MS', bucket_type="rank"):
     """График стабильности WoE признака по времени
 
     **Аргументы**
@@ -161,7 +161,7 @@ def woe_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
     """
 
     df_agg = _aggregate_data_for_woe_stab(df, feature, target, date,
-                                          num_buck, date_freq)
+                                          num_buck, date_freq, bucket_type=bucket_type)
 
     data = hv.Dataset(df_agg, kdims=['bucket', date],
                       vdims=['woe', 'woe_b', 'woe_u'])
@@ -179,7 +179,7 @@ def woe_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
 
 
 @_set_options
-def tr_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
+def tr_stab(df, feature, target, date, num_buck=10, date_freq='MS', bucket_type="rank"):
     """График стабильности WoE признака по времени
 
     **Аргументы**
@@ -208,7 +208,7 @@ def tr_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
     """
 
     df_agg = _aggregate_data_for_tr_stab(df, feature, target, date,
-                                         num_buck, date_freq)
+                                         num_buck, date_freq, bucket_type=bucket_type)
 
     data = hv.Dataset(df_agg, kdims=['bucket', date],
                       vdims=['target_rate', 'tr_b', 'tr_u'])
@@ -226,7 +226,7 @@ def tr_stab(df, feature, target, date, num_buck=10, date_freq='MS'):
 
 
 @_set_options
-def distribution(df, feature, date, num_buck=10, date_freq='MS'):
+def distribution(df, feature, date, num_buck=10, date_freq='MS', bucket_type="rank"):
     """График изменения распределения признака по времени
 
     **Аргументы**
@@ -252,7 +252,7 @@ def distribution(df, feature, date, num_buck=10, date_freq='MS'):
     """
 
     df_agg = _aggregate_data_for_distribution(df, feature, date,
-                                              num_buck, date_freq)
+                                              num_buck, date_freq, bucket_type=bucket_type)
 
     obj_rates = (hv.Dataset(df_agg, kdims=['bucket', date],  # pylint: disable=no-member
                             vdims=['objects_rate', 'obj_rate_l', 'obj_rate_u'])
@@ -311,9 +311,9 @@ def isotonic(df, predict, target, calibrations_data=None):
 
 
 @_set_options
-def target_rates(df, feature, target, num_buck):
+def target_rates(df, feature, target, num_buck, bucket_type="rank"):
     df_copy = df.copy()
-    df_agg = _aggregate_data_for_target_rate(df_copy, feature, target, num_buck)
+    df_agg = _aggregate_data_for_target_rate(df_copy, feature, target, num_buck, bucket_type=bucket_type)
     scatter = hv.Scatter(data=df_agg, kdims=[feature],
                          vdims=['target_rate'], group='Weight of evidence')
     errors = hv.ErrorBars(data=df_agg, kdims=[feature],
