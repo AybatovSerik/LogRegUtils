@@ -327,7 +327,7 @@ def target_rates(df, feature, target, num_buck):
 
 def cross_tab(df, feature1, feature2, target,
               num_buck1=10, num_buck2=10, min_sample=100,
-              compute_iv=False):
+              compute_iv=False, bucket_type="rank"):
     """Кросстабуляция пары признаков и бинарной целевой переменной
 
     **Аргументы**
@@ -361,13 +361,19 @@ def cross_tab(df, feature1, feature2, target,
 
     (rates, counts) : (pandas.Styler, pandas.Styler)
     """
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
 
     f1_buck, f2_buck, target = (
         df
         .loc[df[target].dropna().index]
         .reset_index()
-        .pipe(lambda x: (_make_bucket(x[feature1], num_buck1),
-                         _make_bucket(x[feature2], num_buck2),
+        .pipe(lambda x: (bucket_func(x[feature1], num_buck1),
+                         bucket_func(x[feature2], num_buck2),
                          x[target]))
     )
 
@@ -394,11 +400,18 @@ def cross_tab(df, feature1, feature2, target,
     return _TupleHTML((rates, counts))
 
 
-def _aggregate_data_for_woe_line(df, feature, target, num_buck):
+def _aggregate_data_for_woe_line(df, feature, target, num_buck, bucket_type="rank"):
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
+
     df = df[[feature, target]].dropna()
 
     df_agg = (
-        df.assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+        df.assign(bucket=lambda x: bucket_func(x[feature], num_buck),
                   obj_count=1)
         .groupby('bucket', as_index=False)
         .agg({target: 'sum', 'obj_count': 'sum', feature: 'mean'})
@@ -431,11 +444,18 @@ def _aggregate_data_for_woe_line(df, feature, target, num_buck):
     return df_agg
 
 
-def _aggregate_data_for_target_rate(df, feature, target, num_buck):
+def _aggregate_data_for_target_rate(df, feature, target, num_buck, bucket_type="rank"):
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
+
     df = df[[feature, target]].dropna()
 
     df_agg = (
-        df.assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+        df.assign(bucket=lambda x: bucket_func(x[feature], num_buck),
                   obj_count=1)
             .groupby('bucket', as_index=False)
             .agg({target: 'sum', 'obj_count': 'sum', feature: 'mean'})
@@ -458,11 +478,18 @@ def _aggregate_data_for_target_rate(df, feature, target, num_buck):
 
 
 def _aggregate_data_for_woe_stab(df, feature, target,
-                                 date, num_buck, date_freq):
+                                 date, num_buck, date_freq, bucket_type="rank"):
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
+
     return (
         df.loc[lambda x: x[[date, target]].notnull().all(axis=1)]
         .loc[:, [feature, target, date]]
-        .assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+        .assign(bucket=lambda x: bucket_func(x[feature], num_buck),
                 obj_count=1)
         .groupby(['bucket', pd.Grouper(key=date, freq=date_freq)])
         .agg({target: 'sum', 'obj_count': 'sum'})
@@ -488,11 +515,17 @@ def _aggregate_data_for_woe_stab(df, feature, target,
 
 
 def _aggregate_data_for_tr_stab(df, feature, target,
-                                date, num_buck, date_freq):
+                                date, num_buck, date_freq, bucket_type="rank"):
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
     return (
         df.loc[lambda x: x[[date, target]].notnull().all(axis=1)]
             .loc[:, [feature, target, date]]
-            .assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+            .assign(bucket=lambda x: bucket_func(x[feature], num_buck),
                     obj_count=1)
             .groupby(['bucket', pd.Grouper(key=date, freq=date_freq)])
             .agg({target: 'sum', 'obj_count': 'sum'})
@@ -516,10 +549,16 @@ def _aggregate_data_for_tr_stab(df, feature, target,
 
 
 def _aggregate_data_for_distribution(df, feature, date,
-                                     num_buck, date_freq):
+                                     num_buck, date_freq, bucket_type="rank"):
+    if bucket_type == "rank":
+        bucket_func = _make_bucket
+    elif bucket_type == "linear":
+        bucket_func = _make_bucket_linear
+    else:
+        bucket_func = _make_bucket
     return (
         df.loc[:, [feature, date]]
-        .assign(bucket=lambda x: _make_bucket(x[feature], num_buck),
+        .assign(bucket=lambda x: bucket_func(x[feature], num_buck),
                 obj_count=1)
         .groupby(['bucket', pd.Grouper(key=date, freq=date_freq)])
         .agg({'obj_count': 'sum'})
@@ -546,6 +585,28 @@ def _aggregate_data_for_distribution(df, feature, date,
 
 def _make_bucket(series, num_buck):
     bucket = np.ceil(series.rank(pct=True) * num_buck).fillna(num_buck + 1)
+    bucket = pd.Categorical(bucket, categories=np.sort(bucket.unique()),
+                            ordered=True)
+    agg = series.groupby(bucket).agg(['min', 'max'])
+
+    def _format_buck(row):
+        if row.name == num_buck + 1:
+            return 'missing'
+        if row['min'] == row['max']:
+            return _format_val(row['min'])
+        return '[{}; {}]'.format(
+            _format_val(row['min']),
+            _format_val(row['max'])
+        )
+
+    names = agg.apply(_format_buck, axis=1)
+    return bucket.rename_categories(names.to_dict())
+
+
+def _make_bucket_linear(series, num_buck):
+    min_ = series.min()
+    max_ = series.max() + 1e-10
+    bucket = np.ceil((series-min_+1e-10)*num_buck/(max_-min_))
     bucket = pd.Categorical(bucket, categories=np.sort(bucket.unique()),
                             ordered=True)
     agg = series.groupby(bucket).agg(['min', 'max'])
