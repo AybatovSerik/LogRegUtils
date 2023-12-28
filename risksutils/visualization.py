@@ -740,7 +740,7 @@ def _color_interpolate(values, bounds_colors):
         .interpolate('index')
         .fillna(method='ffill')
         .fillna(method='bfill')
-        .astype(np.int)
+        .astype(int)
         .reset_index()
         .drop_duplicates()
         .set_index('bound')
