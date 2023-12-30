@@ -15,7 +15,7 @@
 
 Для установки воспользуйтесь командой::
 
-    python -m pip install risksutils git+https://github.com/AybatovSerik/LogRegUtils.git
+    python -m pip install risksutils git+https://github.com/AybatovSerik/LogRegUtils.git --use-pep517
 
 
 .. |TravisImage| image:: https://travis-ci.org/dshulchevskii/risksutils.svg?branch=master
